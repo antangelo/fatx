@@ -17,25 +17,78 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "fatx_internal.h"
+#include "../fatx_internal.h"
+#include "fatx_dev.h"
+
+#include <stddef.h>
+#include <assert.h>
+
+fatx_dev_open_fn *fatx_dev_open_functions[] = {
+    &fatx_open_raw_device,
+#ifdef FATX_QEMU
+    &fatx_open_qemu_device,
+#endif
+};
+
+fatx_dev_init_fn *fatx_dev_init_functions[] = {
+    &fatx_init_raw_driver,
+#ifdef FATX_QEMU
+    &fatx_init_qemu_driver,
+#endif
+};
+
+bool fatx_dev_init()
+{
+    bool init_success = true;
+    assert(ARRAY_SIZE(fatx_dev_open_functions) == ARRAY_SIZE(fatx_dev_init_functions));
+
+    for (size_t i = 0; i < ARRAY_SIZE(fatx_dev_init_functions); ++i)
+    {
+        init_success &= fatx_dev_init_functions[i]();
+    }
+
+    return init_success;
+}
+
+struct fatx_dev *fatx_dev_open(const char *path, off_t sample_partition_offset)
+{
+    struct fatx_dev *dev;
+    uint32_t signature;
+
+    for (size_t i = 0; i < ARRAY_SIZE(fatx_dev_open_functions); ++i)
+    {
+        dev = fatx_dev_open_functions[i](path);
+        if (!dev)
+        {
+            continue;
+        }
+        
+        if (dev->read(dev->device_data, &signature, sample_partition_offset, sizeof(uint32_t), 1))
+        {
+            if (signature == FATX_SIGNATURE)
+            {
+                return dev;
+            }
+        }
+
+        dev->close(dev->device_data);
+    }
+
+    return NULL;
+}
+
+void fatx_dev_close(struct fatx_dev *dev)
+{
+    dev->close(dev->device_data);
+    free(dev);
+}
 
 /*
  * Seek to a byte offset in the device.
  */
 int fatx_dev_seek(struct fatx_fs *fs, uint64_t offset)
 {
-    int status;
-
-#ifdef _WIN32
-    status = _fseeki64(fs->device, offset, SEEK_SET);
-#else
-    status = fseeko(fs->device, offset, SEEK_SET);
-#endif
-    if (status)
-    {
-        fatx_error(fs, "failed to seek\n");
-        return FATX_STATUS_ERROR;
-    }
+    fs->seek_position = offset;
 
     return FATX_STATUS_SUCCESS;
 }
@@ -54,8 +107,9 @@ int fatx_dev_seek_cluster(struct fatx_fs *fs, size_t cluster, off_t offset)
     if (status) return status;
 
     pos += offset;
+    fs->seek_position = pos;
 
-    return fatx_dev_seek(fs, pos);
+    return FATX_STATUS_SUCCESS;
 }
 
 /*
@@ -64,7 +118,7 @@ int fatx_dev_seek_cluster(struct fatx_fs *fs, size_t cluster, off_t offset)
 size_t fatx_dev_read(struct fatx_fs *fs, void *buf, size_t size, size_t items)
 {
     fatx_debug(fs, "fatx_dev_read(buf=0x%p, size=0x%zx, items=0x%zx)\n", buf, size, items);
-    return fread(buf, size, items, fs->device);
+    return fs->device->read(fs->device->device_data, buf, fs->seek_position, size, items);
 }
 
 /*
@@ -73,5 +127,5 @@ size_t fatx_dev_read(struct fatx_fs *fs, void *buf, size_t size, size_t items)
 size_t fatx_dev_write(struct fatx_fs *fs, const void *buf, size_t size, size_t items)
 {
     fatx_debug(fs, "fatx_dev_write(buf=0x%p, size=0x%zx, items=0x%zx)\n", buf, size, items);
-    return fwrite(buf, size, items, fs->device);
+    return fs->device->write(fs->device->device_data, buf, fs->seek_position, size, items);
 }

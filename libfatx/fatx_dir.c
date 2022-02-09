@@ -20,6 +20,7 @@
 #include "fatx_internal.h"
 #include <time.h>
 #include <stdlib.h>
+#include <stdio.h>
 
 /*
  * Open a directory.
@@ -200,6 +201,7 @@ int fatx_read_dir(struct fatx_fs *fs, struct fatx_dir *dir, struct fatx_dirent *
     if (items != 1)
     {
         fatx_error(fs, "failed to read directory entry\n");
+        fprintf(stderr, "fatx_dir: error 1!\n");
         return FATX_STATUS_ERROR;
     }
 
@@ -415,6 +417,7 @@ int fatx_mark_dir_entry(struct fatx_fs *fs, struct fatx_dir *dir, size_t marker)
     if (items != 1)
     {
         fatx_error(fs, "failed to read directory entry\n");
+        fprintf(stderr, "fatx_dir: error 2!\n");
         return FATX_STATUS_ERROR;
     }
 

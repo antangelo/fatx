@@ -23,11 +23,12 @@
 #include <string.h>
 
 #include "fatx_internal.h"
+#include "dev/fatx_dev.h"
 
 /*
  * Open a device.
  */
-int fatx_open_device(struct fatx_fs *fs, char const *path, uint64_t offset, uint64_t size, size_t sector_size, size_t sectors_per_cluster)
+int fatx_open_filesystem(struct fatx_fs *fs, struct fatx_dev *dev, char const *path, uint64_t offset, uint64_t size, size_t sector_size, size_t sectors_per_cluster)
 {
     int retval = 0;
 
@@ -60,6 +61,7 @@ int fatx_open_device(struct fatx_fs *fs, char const *path, uint64_t offset, uint
         return FATX_STATUS_ERROR;
     }
 
+    fs->device           = dev;
     fs->device_path      = path;
     fs->sector_size      = sector_size;
     fs->partition_offset = offset;
@@ -67,15 +69,9 @@ int fatx_open_device(struct fatx_fs *fs, char const *path, uint64_t offset, uint
 
     memset(&fs->fat_cache, 0, sizeof(fs->fat_cache));
 
-    fs->device = fopen(fs->device_path, "r+b");
-    if (!fs->device)
+    if (fatx_init_superblock(fs, sectors_per_cluster) != FATX_STATUS_SUCCESS)
     {
-        fatx_error(fs, "failed to open %s for reading and writing\n", path);
-        return FATX_STATUS_ERROR;
-    }
-
-    if (fatx_init_superblock(fs, sectors_per_cluster))
-    {
+        fatx_error(fs, "failed to read superblock\n");
         return FATX_STATUS_ERROR;
     }
 
@@ -157,20 +153,16 @@ int fatx_open_device(struct fatx_fs *fs, char const *path, uint64_t offset, uint
 
     /* Close device. */
 cleanup:
-    fclose(fs->device);
+    fatx_close_filesystem(fs);
     return retval;
 }
 
 /*
  * Close an open device.
  */
-int fatx_close_device(struct fatx_fs *fs)
+int fatx_close_filesystem(struct fatx_fs *fs)
 {
-    int status;
-
     fatx_debug(fs, "fatx_close_device()\n");
 
-    status = fatx_flush_fat_cache(fs);
-    fclose(fs->device);
-    return status;
+    return fatx_flush_fat_cache(fs);
 }

@@ -71,14 +71,16 @@ class Fatx:
 			offset, size = partitions[drive]
 		if isinstance(path, str):
 			path = path.encode('utf-8')
-		s = fatx_open_device(self.fs, path, offset, size, sector_size, 0)
+		self.dev = fatx_open_device(path, offset)
+		s = fatx_open_filesystem(self.fs, self.dev, path, offset, size, sector_size, 0)
 		if s != 0:
 			self.fs = None
 		assert s == 0
 
 	def __del__(self):
 		if self.fs is not None:
-			fatx_close_device(self.fs)
+			fatx_close_filesystem(self.fs)
+			fatx_close_device(self.dev)
 			# FIXME: Leaks fs
 
 	def _sanitize_path(self, path):

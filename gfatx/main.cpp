@@ -49,16 +49,24 @@ int main(int argc, char *argv[])
     QByteArray ba = diskPath.toLocal8Bit();
     const char *disk_path = ba.data();
 
+    fatx_dev_init();
+    fatx_dev *dev = fatx_dev_open(disk_path, partition_map[0].offset);
+    if (!dev) {
+        fprintf(stderr, "Failed to open disk\n");
+        exit(1);
+    }
+
+    FatxDevice device(dev);
     FatxFileSystemModel model;
     for (int i = 0; i < ARRAY_SIZE(partition_map); i++) {
         int s;
 
         fatx_log_init(&partition_map[i].fs, stderr, 1);
-        s = fatx_open_device(&partition_map[i].fs, disk_path,
+        s = fatx_open_filesystem(&partition_map[i].fs, dev, disk_path,
                              partition_map[i].offset, partition_map[i].size,
                              512, FATX_READ_FROM_SUPERBLOCK);
         if (s != FATX_STATUS_SUCCESS) {
-            fprintf(stderr, "Failed to open disk\n");
+            fprintf(stderr, "Failed to open filesystem\n");
             continue;
         }
         model.addPartition(std::string(partition_map[i].letter), &partition_map[i].fs);

@@ -20,6 +20,7 @@
 #define _XOPEN_SOURCE 600
 
 #include "fatx.h"
+#include "dev/fatx_dev.h"
 #include "fatx_version.h"
 
 #include <errno.h>
@@ -51,6 +52,7 @@ enum {
 
 struct fatx_fuse_private_data {
     struct fatx_fs   *fs;
+    struct fatx_dev  *dev;
     char const       *device_path;
     char const       *log_path;
     char             *mount_point;
@@ -129,7 +131,7 @@ struct fatx_fuse_private_data *fatx_fuse_get_private_data(void)
  * Initialize the filesystem
  */
 void *fatx_fuse_init(struct fuse_conn_info *conn)
-{
+{   
     return fatx_fuse_get_private_data();
 }
 
@@ -140,10 +142,11 @@ void fatx_fuse_destroy(void *data)
 {
     struct fatx_fuse_private_data *pd = data;
 
-    fatx_close_device(pd->fs);
+    fatx_close_filesystem(pd->fs);
     free(pd->fs);
     pd->fs = NULL;
 
+    fatx_dev_close(pd->dev);
     free(pd->mount_point);
 
     if (pd->log_handle)
@@ -709,7 +712,8 @@ void fatx_fuse_print_usage(void)
                     "Disk formatting options:\n"
                     "    --format=<format>              specify the format (retail, f-takes-all) to initialize the device to\n"
                     "    --sectors-per-cluster=<size>   specify the sectors per cluster when initializing non-retail partitions (default is 128)\n"
-                    "    --destroy-all-existing-data    acknowledge that device formatting will destroy all existing data\n\n");
+                    "    --destroy-all-existing-data    acknowledge that device formatting will destroy all existing data\n\n"
+                    "    --type=<raw|virtual>   specify the drive image file format\n\n");
 
     /* Print FUSE options */
     argv[0] = prog_short_name;
@@ -830,12 +834,20 @@ int main(int argc, char *argv[])
         fatx_log_init(pd.fs, pd.log_handle, pd.log_level);
     }
 
+    /* Open the device */
+    fatx_dev_init();
+    pd.dev = fatx_dev_open(pd.device_path, pd.mount_partition_offset);
+    if (!pd.dev)
+    {
+        fprintf(stderr, "failed to open device\n");
+    }
+
     /* Reformat the drive (if desired) */
     if (pd.format)
     {
         if (pd.format_confirm)
         {
-            return fatx_disk_format(pd.fs, pd.device_path, pd.device_sector_size, pd.format, pd.device_sectors_per_cluster);
+            return fatx_disk_format(pd.fs, pd.dev, pd.device_path, pd.device_sector_size, pd.format, pd.device_sectors_per_cluster);
         }
         else
         {
@@ -849,8 +861,8 @@ int main(int argc, char *argv[])
         goto error_fs;
     }
 
-    /* Open the device */
-    status = fatx_open_device(pd.fs,
+    status = fatx_open_filesystem(pd.fs,
+                              pd.dev,
                               pd.device_path,
                               pd.mount_partition_offset,
                               pd.mount_partition_size,
@@ -864,6 +876,13 @@ int main(int argc, char *argv[])
 
     /* Force single threaded operation .*/
     fuse_opt_insert_arg(&args, 1, "-s");
+
+    /* fuse_main will normally fork and kill threads, so we need to force foreground if the device driver uses additional threads */
+    if (pd.fs->device->uses_threads)
+    {
+        fprintf(stdout, "fatxfs is running in foreground mode. The process will not exit until the filesystem is unmounted. This is normal!\n");
+        fuse_opt_insert_arg(&args, 1, "-f");
+    }
 
     return fuse_main(args.argc, args.argv, &fatx_fuse_oper, &pd);
 

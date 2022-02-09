@@ -4,6 +4,7 @@
 #include <QAbstractItemModel>
 #include <QFileIconProvider>
 #include <fatx.h>
+#include <dev/fatx_dev.h>
 #include <assert.h>
 
 #include <string>
@@ -17,6 +18,17 @@ enum NodeType {
     NODETYPE_DISK,
     NODETYPE_PARTITION,
     NODETYPE_FILE,
+};
+
+struct FatxDevice {
+    fatx_dev *dev;
+    FatxDevice(fatx_dev *device) {
+        dev = device;
+    }
+
+    ~FatxDevice() {
+        fatx_dev_close(dev);
+    }
 };
 
 struct NodeBase {
@@ -33,6 +45,10 @@ struct NodeDisk : NodeBase {
 struct NodePartition : NodeBase {
     struct fatx_fs *fs;
     std::string name;
+
+    ~NodePartition() {
+        fatx_close_filesystem(fs);
+    }
 };
 
 struct NodeFile : NodeBase

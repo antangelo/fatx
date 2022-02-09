@@ -15,9 +15,12 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-cmake_minimum_required(VERSION 2.6)
+cmake_minimum_required(VERSION 3.1)
 
 project(fatxfs)
+
+set(CMAKE_BUILD_TYPE Debug)
+set(QEMU true)
 
 find_package(PkgConfig)
 
@@ -25,6 +28,33 @@ set(FATX_SOURCES "")
 add_subdirectory(${CMAKE_SOURCE_DIR}/libfatx)
 add_library(fatx ${FATX_SOURCES})
 target_compile_options(fatx PUBLIC -D_FILE_OFFSET_BITS=64)
+
+target_compile_options(fatx PUBLIC -O2)
+target_link_options(fatx PUBLIC -O2)
+
+if (QEMU)
+    set(QEMU_DIR ${CMAKE_SOURCE_DIR}/../xemu)
+    set(QEMU_BUILD_DIR ${QEMU_DIR}/build)
+    pkg_search_module(GLIB glib-2.0)
+    find_package(ZLIB REQUIRED)
+    target_link_libraries(fatx ${GLIB_LIBRARIES} ${ZLIB_LIBRARIES})
+    target_compile_options(fatx PUBLIC ${GLIB_CFLAGS_OTHER} ${ZLIB_CFLAGS_OTHER})
+    add_definitions(-DFATX_QEMU)
+    include_directories(${GLIB_INCLUDE_DIRS} ${ZLIB_INCLUDE_DIRS})
+    include_directories(${QEMU_DIR}/include)
+    include_directories(${QEMU_BUILD_DIR})
+
+    set(QEMU_LIBS 
+        ${QEMU_BUILD_DIR}/libblock.fa
+        ${QEMU_BUILD_DIR}/libauthz.fa
+        ${QEMU_BUILD_DIR}/libqom.fa
+        ${QEMU_BUILD_DIR}/libio.fa
+        ${QEMU_BUILD_DIR}/libcrypto.fa
+        ${QEMU_BUILD_DIR}/libqemuutil.a
+        )
+    target_link_libraries(fatx ${QEMU_LIBS})
+endif()
+
 if (MSVC)
     target_compile_options(fatx PUBLIC /std:c11)
 endif()

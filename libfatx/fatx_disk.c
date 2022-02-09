@@ -114,7 +114,7 @@ int fatx_disk_size_remaining(char const *path, uint64_t offset, uint64_t *remain
 /*
  * Reformat a disk as FATX.
  */
-int fatx_disk_format(struct fatx_fs *fs, char const *path, size_t sector_size, enum fatx_format format_type, size_t sectors_per_cluster)
+int fatx_disk_format(struct fatx_fs *fs, struct fatx_dev *dev, char const *path, size_t sector_size, enum fatx_format format_type, size_t sectors_per_cluster)
 {
     struct fatx_partition_map_entry const *pi;
     uint64_t f_offset, f_size;
@@ -145,7 +145,7 @@ int fatx_disk_format(struct fatx_fs *fs, char const *path, size_t sector_size, e
          * configure the cluster size on retail partitions or many games
          * will not load. Adjusting sector sizes, however, is okay.
          */
-        if (fatx_disk_format_partition(fs, path, pi->offset, pi->size, sector_size, FATX_RETAIL_CLUSTER_SIZE / sector_size))
+        if (fatx_disk_format_partition(fs, dev, path, pi->offset, pi->size, sector_size, FATX_RETAIL_CLUSTER_SIZE / sector_size))
         {
             fatx_error(fs, " - failed to format partition %d\n", i);
             return FATX_STATUS_ERROR;
@@ -163,7 +163,7 @@ int fatx_disk_format(struct fatx_fs *fs, char const *path, size_t sector_size, e
         fatx_info(fs, "-------------------------------------------\n");
         fatx_info(fs, "Formatting partition %d (%c drive) ...\n", 5, 'f');
 
-        if (fatx_disk_format_partition(fs, path, f_offset, f_size, sector_size, sectors_per_cluster))
+        if (fatx_disk_format_partition(fs, dev, path, f_offset, f_size, sector_size, sectors_per_cluster))
         {
             fatx_error(fs, " - failed to format partition %d (f-takes-all)\n", 5);
             return FATX_STATUS_ERROR;
@@ -176,11 +176,11 @@ int fatx_disk_format(struct fatx_fs *fs, char const *path, size_t sector_size, e
 /*
  * Format partition.
  */
-int fatx_disk_format_partition(struct fatx_fs *fs, char const *path, uint64_t offset, uint64_t size, size_t sector_size, size_t sectors_per_cluster)
+int fatx_disk_format_partition(struct fatx_fs *fs, struct fatx_dev *dev, char const *path, uint64_t offset, uint64_t size, size_t sector_size, size_t sectors_per_cluster)
 {
     int retval;
 
-    if (fatx_open_device(fs, path, offset, size, sector_size, sectors_per_cluster))
+    if (fatx_open_filesystem(fs, dev, path, offset, size, sector_size, sectors_per_cluster))
     {
         return FATX_STATUS_ERROR;
     }
@@ -206,7 +206,7 @@ int fatx_disk_format_partition(struct fatx_fs *fs, char const *path, uint64_t of
     retval = FATX_STATUS_SUCCESS;
 
 cleanup:
-    fatx_close_device(fs);
+    fatx_close_filesystem(fs);
     return retval;
 }
 

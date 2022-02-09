@@ -9,6 +9,9 @@ from distutils.command.build_ext import build_ext
 ROOT_DIR = os.path.abspath(os.path.dirname(__file__))
 LIBFATX_DIR = os.path.join(ROOT_DIR, 'libfatx')
 BUILD_DIR = os.path.join(ROOT_DIR, 'build')
+QEMU_DIR = os.path.join(ROOT_DIR, '../xemu')
+QEMU_INCLUDE_DIR = os.path.join(QEMU_DIR, 'include')
+QEMU_BUILD_DIR = os.path.join(QEMU_DIR, 'build')
 
 if platform.system() == 'Windows':
     LIBRARY_DIR = os.path.join(BUILD_DIR, 'Release')
@@ -42,6 +45,7 @@ def ffibuilder():
         """
         #include <stdlib.h>
         #include <fatx.h>
+        #include <dev/fatx_dev.h>
 
         struct fatx_fs *pyfatx_open_helper(void)
         {
@@ -53,8 +57,8 @@ def ffibuilder():
 
         """,
         libraries=['fatx'],
-        include_dirs=[LIBFATX_DIR],
-        library_dirs=[LIBRARY_DIR])
+        include_dirs=[LIBFATX_DIR, QEMU_INCLUDE_DIR, QEMU_BUILD_DIR],
+        library_dirs=[LIBRARY_DIR, QEMU_BUILD_DIR])
     ffi.cdef("""
         struct fatxfs;
 
@@ -90,8 +94,9 @@ def ffibuilder():
 
         struct fatx_fs *pyfatx_open_helper(void);
 
-        int fatx_open_device(struct fatx_fs *fs, char const *path, uint64_t offset, uint64_t size, size_t sector_size, size_t sectors_per_cluster);
-        int fatx_close_device(struct fatx_fs *fs);
+        struct fatx_dev *fatx_open_dev(const char *path, uint64_t offset);
+        int fatx_open_filesystem(struct fatx_fs *fs, struct fatx_dev *dev, char const *path, uint64_t offset, uint64_t size, size_t sector_size, size_t sectors_per_cluster);
+        int fatx_close_filesystem(struct fatx_fs *fs);
         int fatx_open_dir(struct fatx_fs *fs, char const *path, struct fatx_dir *dir);
         int fatx_read_dir(struct fatx_fs *fs, struct fatx_dir *dir, struct fatx_dirent *entry, struct fatx_attr *attr, struct fatx_dirent **result);
         int fatx_write_dir(struct fatx_fs *fs, struct fatx_dir *dir, struct fatx_dirent *entry, struct fatx_attr *attr);
@@ -112,8 +117,8 @@ def ffibuilder():
         int fatx_rename(struct fatx_fs *fs, char const *from, char const *to, bool exchange, bool no_replace);
         int fatx_disk_size(char const *path, uint64_t *size);
         int fatx_disk_size_remaining(char const *path, uint64_t offset, uint64_t *size);
-        int fatx_disk_format(struct fatx_fs *fs, char const *path, size_t sector_size, enum fatx_format format_type, size_t sectors_per_cluster);
-        int fatx_disk_format_partition(struct fatx_fs *fs, char const *path, uint64_t offset, uint64_t size, size_t sector_size, size_t sectors_per_cluster);
+        int fatx_disk_format(struct fatx_fs *fs, struct fatx_dev *dev, char const *path, size_t sector_size, enum fatx_format format_type, size_t sectors_per_cluster);
+        int fatx_disk_format_partition(struct fatx_fs *fs, struct fatx_dev *dev, char const *path, uint64_t offset, uint64_t size, size_t sector_size, size_t sectors_per_cluster);
         int fatx_drive_to_offset_size(char drive_letter, uint64_t *offset, uint64_t *size);
         int fatx_disk_write_refurb_info(char const *path, uint32_t number_of_boots, uint64_t first_power_on);
         """)

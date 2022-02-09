@@ -25,6 +25,7 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <string.h>
+#include <stdbool.h>
 #include <sys/types.h>
 
 #ifdef __cplusplus
@@ -32,6 +33,7 @@ extern "C" {
 #endif
 
 #include "fatx_log.h"
+#include "dev/fatx_dev.h"
 
 #define FATX_MAX_FILENAME_LEN        42
 #define FATX_ATTR_READ_ONLY          (1<<0)
@@ -75,7 +77,8 @@ struct fatx_cache {
 
 struct fatx_fs {
     char const       *device_path;
-    FILE             *device;
+    struct fatx_dev  *device;
+    off_t             seek_position;
     size_t            sector_size;
     uint64_t          partition_offset;
     uint64_t          partition_size;
@@ -139,8 +142,8 @@ enum fatx_format {
 };
 
 /* FATX Functions */
-int fatx_open_device(struct fatx_fs *fs, char const *path, uint64_t offset, uint64_t size, size_t sector_size, size_t sectors_per_cluster);
-int fatx_close_device(struct fatx_fs *fs);
+int fatx_open_filesystem(struct fatx_fs *fs, struct fatx_dev *dev, char const *path, uint64_t offset, uint64_t size, size_t sector_size, size_t sectors_per_cluster);
+int fatx_close_filesystem(struct fatx_fs *fs);
 int fatx_open_dir(struct fatx_fs *fs, char const *path, struct fatx_dir *dir);
 int fatx_read_dir(struct fatx_fs *fs, struct fatx_dir *dir, struct fatx_dirent *entry, struct fatx_attr *attr, struct fatx_dirent **result);
 int fatx_write_dir(struct fatx_fs *fs, struct fatx_dir *dir, struct fatx_dirent *entry, struct fatx_attr *attr);
@@ -166,8 +169,8 @@ time_t fatx_ts_to_time_t(const struct fatx_ts *in);
 /* Disk Functions */
 int fatx_disk_size(char const *path, uint64_t *size);
 int fatx_disk_size_remaining(char const *path, uint64_t offset, uint64_t *size);
-int fatx_disk_format(struct fatx_fs *fs, char const *path, size_t sector_size, enum fatx_format format_type, size_t sectors_per_cluster);
-int fatx_disk_format_partition(struct fatx_fs *fs, char const *path, uint64_t offset, uint64_t size, size_t sector_size, size_t sectors_per_cluster);
+int fatx_disk_format(struct fatx_fs *fs, struct fatx_dev *dev, char const *path, size_t sector_size, enum fatx_format format_type, size_t sectors_per_cluster);
+int fatx_disk_format_partition(struct fatx_fs *fs, struct fatx_dev *dev, char const *path, uint64_t offset, uint64_t size, size_t sector_size, size_t sectors_per_cluster);
 int fatx_drive_to_offset_size(char drive_letter, uint64_t *offset, uint64_t *size);
 int fatx_disk_write_refurb_info(char const *path, uint32_t number_of_boots, uint64_t first_power_on);
 
