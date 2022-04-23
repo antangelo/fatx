@@ -27,13 +27,22 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <libgen.h>
+#include <stdio.h>
+#include <fcntl.h>
 
 /* Define the desired FUSE API (required before including fuse.h) */
-#define FUSE_USE_VERSION 26
-#include <fuse.h>
-#include <fuse_opt.h>
+#define FUSE_USE_VERSION 310
+#include <fuse3/fuse.h>
+#include <fuse3/fuse_lowlevel.h>
+#include <fuse3/fuse_opt.h>
 
 #include <time.h>
+
+#define RENAME_NOREPLACE (1 << 0)
+#define RENAME_EXCHANGE (1 << 1)
+
+#define UTIME_NOW	((1l << 30) - 1l)
+#define UTIME_OMIT	((1l << 30) - 2l)
 
 enum {
     FATX_FUSE_OPT_KEY_HELP,
@@ -68,19 +77,19 @@ struct fatx_fuse_private_data {
 /*
  * Filesystem operation functions.
  */
-int fatx_fuse_get_attr(const char *path, struct stat *stbuf);
+int fatx_fuse_get_attr(const char *path, struct stat *stbuf, struct fuse_file_info *fi);
 int fatx_fuse_mkdir(const char *path, mode_t mode);
 int fatx_fuse_rmdir(const char *path);
 int fatx_fuse_mknod(const char *path, mode_t mode, dev_t dev);
 int fatx_fuse_open(const char *path, struct fuse_file_info *fi);
 int fatx_fuse_read(const char *path, char *buf, size_t size, off_t offset, struct fuse_file_info *fi);
 int fatx_fuse_write(const char *path, const char *buf, size_t size, off_t offset, struct fuse_file_info *fi);
-int fatx_fuse_read_dir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offset, struct fuse_file_info *fi);
+int fatx_fuse_read_dir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offset, struct fuse_file_info *fi, enum fuse_readdir_flags flags);
 int fatx_fuse_unlink(char const *path);
-int fatx_fuse_truncate(const char *path, off_t size);
-int fatx_fuse_rename(const char *from, const char *to);
-int fatx_fuse_utimens(const char *path, const struct timespec ts[2]);
-void *fatx_fuse_init(struct fuse_conn_info *conn);
+int fatx_fuse_truncate(const char *path, off_t size, struct fuse_file_info *fi);
+int fatx_fuse_rename(const char *from, const char *to, unsigned int flags);
+int fatx_fuse_utimens(const char *path, const struct timespec ts[2], struct fuse_file_info *fi);
+void *fatx_fuse_init(struct fuse_conn_info *conn, struct fuse_config *cfg);
 void fatx_fuse_destroy(void *data);
 
 /*
@@ -128,7 +137,7 @@ struct fatx_fuse_private_data *fatx_fuse_get_private_data(void)
 /*
  * Initialize the filesystem
  */
-void *fatx_fuse_init(struct fuse_conn_info *conn)
+void *fatx_fuse_init(struct fuse_conn_info *conn, struct fuse_config *cfg)
 {
     return fatx_fuse_get_private_data();
 }
@@ -181,7 +190,7 @@ void fatx_attr_to_stat(const struct fatx_attr *attr, struct stat *stbuf)
 /*
  * Read the next directory entry.
  */
-int fatx_fuse_read_dir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offset, struct fuse_file_info *fi)
+int fatx_fuse_read_dir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offset, struct fuse_file_info *fi, enum fuse_readdir_flags flags)
 {
     struct fatx_fuse_private_data *pd;
     struct fatx_dirent dirent, *nextdirent;
@@ -194,7 +203,7 @@ int fatx_fuse_read_dir(const char *path, void *buf, fuse_fill_dir_t filler, off_
     pd = fatx_fuse_get_private_data();
     if (pd == NULL) return -1;
 
-    fatx_debug(pd->fs, "fatx_fuse_read_dir(path=\"%s\", buf=0x%p, offset=0x%zx)\n", path, buf, offset);
+    fatx_debug(pd->fs, "fatx_fuse_read_dir(path=\"%s\", buf=0x%p, offset=0x%zx, flags=%d)\n", path, buf, offset, flags);
 
     /* Return record for '.' */
     memset(&stat_buf, 0, sizeof(stat_buf));
@@ -206,7 +215,7 @@ int fatx_fuse_read_dir(const char *path, void *buf, fuse_fill_dir_t filler, off_
         fatx_attr_to_stat(&attr, &stat_buf);
     }
     
-    status = filler(buf, ".", &stat_buf, 0);
+    status = filler(buf, ".", &stat_buf, 0, 0);
     if (status) return -ENOMEM;
 
     /* Return record for '..' */
@@ -242,7 +251,56 @@ int fatx_fuse_read_dir(const char *path, void *buf, fuse_fill_dir_t filler, off_
         }
     }
 
-    status = filler(buf, "..", &stat_buf, 0);
+    status = filler(buf, "..", &stat_buf, 0, 0);
+    if (status) return -ENOMEM;
+
+    /* Return record for '.' */
+    memset(&stat_buf, 0, sizeof(stat_buf));
+    if (strcmp(path, "/") != 0)
+    {
+        status = fatx_get_attr(pd->fs, path, &attr);
+        if (status) return status;
+
+        fatx_attr_to_stat(&attr, &stat_buf);
+    }
+    
+    status = filler(buf, ".", &stat_buf, 0, 0);
+    if (status) return -ENOMEM;
+
+    /* Return record for '..' */
+    if (strcmp(path, "/") == 0)
+    {
+        /* On the root path, stat the mount point's parent */
+        char *parent = fatx_dirname(pd->mount_point);
+        status = stat(parent, &stat_buf);
+        free(parent);
+        if (status) return -errno;
+    }
+    else
+    {
+        /* If not the root, stat the fs (or handle the root parent case) */
+        char *parent = fatx_dirname(path);
+        memset(&stat_buf, 0, sizeof(stat_buf));
+        if (strcmp(parent, "/") != 0)
+        {
+            status = fatx_get_attr(pd->fs, parent, &attr);
+            free(parent);
+            if (status) return status;
+
+            fatx_attr_to_stat(&attr, &stat_buf);
+        }
+        else
+        {
+            context = fuse_get_context();
+            stat_buf.st_uid = context->uid;
+            stat_buf.st_gid = context->gid;
+            stat_buf.st_mode = S_IFDIR | 0777;
+            stat_buf.st_nlink = 1;
+            free(parent);
+        }
+    }
+
+    status = filler(buf, "..", &stat_buf, 0, 0);
     if (status) return -ENOMEM;
 
     /* Open the directory. */
@@ -261,7 +319,7 @@ int fatx_fuse_read_dir(const char *path, void *buf, fuse_fill_dir_t filler, off_
             fatx_attr_to_stat(&attr, &stat_buf);
 
             /* Found a directory entry, use the filler function to add it. */
-            status = filler(buf, nextdirent->filename, &stat_buf, 0);
+            status = filler(buf, nextdirent->filename, &stat_buf, 0, 0);
 
             if (status)
             {
@@ -298,7 +356,7 @@ int fatx_fuse_read_dir(const char *path, void *buf, fuse_fill_dir_t filler, off_
 /*
  * Get file attributes.
  */
-int fatx_fuse_get_attr(const char  *path, struct stat *stbuf)
+int fatx_fuse_get_attr(const char  *path, struct stat *stbuf, struct fuse_file_info *fi)
 {
     struct fatx_fuse_private_data *pd;
     struct fatx_attr attr;
@@ -497,7 +555,7 @@ int fatx_fuse_mknod(const char *path, mode_t mode, dev_t dev)
 /*
  * Truncate a file.
  */
-int fatx_fuse_truncate(const char *path, off_t size)
+int fatx_fuse_truncate(const char *path, off_t size, struct fuse_file_info *fi)
 {
     struct fatx_fuse_private_data *pd;
     int status;
@@ -514,35 +572,70 @@ int fatx_fuse_truncate(const char *path, off_t size)
 /*
  * Rename a file.
  */
-int fatx_fuse_rename(const char *from, const char *to)
+int fatx_fuse_rename(const char *from, const char *to, unsigned int flags)
 {
     struct fatx_fuse_private_data *pd;
     int status;
 
+    if (flags & RENAME_EXCHANGE & RENAME_NOREPLACE)
+    {
+        return FATX_STATUS_ERROR;
+    }
+
     pd = fatx_fuse_get_private_data();
     if(pd == NULL) return -1;
 
-    fatx_debug(pd->fs, "fatx_fuse_rename(from=\"%s\", to=\"%s\")\n", from, to);
+    fatx_debug(pd->fs, "fatx_fuse_rename(from=\"%s\", to=\"%s\", flags=%zd)\n", from, to, flags);
 
-    status = fatx_rename(pd->fs, from, to, false, false);
+    status = fatx_rename(pd->fs, from, to, flags & RENAME_EXCHANGE, flags & RENAME_NOREPLACE);
     return (status == FATX_STATUS_SUCCESS ? 0 : -1);
 }
 
 /*
  * Set access and modification time for a file
  */
-int fatx_fuse_utimens(const char *path, const struct timespec ts[2])
+int fatx_fuse_utimens(const char *path, const struct timespec ts[2], struct fuse_file_info *fi)
 {
     struct fatx_fuse_private_data *pd;
     struct fatx_ts fat_time[2];
+    bool replace[2];
+    time_t now;
     int status;
 
     pd = fatx_fuse_get_private_data();
     if(pd == NULL) return -1;
 
-    fatx_time_t_to_fatx_ts(ts[0].tv_sec, &(fat_time[0]));
-    fatx_time_t_to_fatx_ts(ts[1].tv_sec, &(fat_time[1]));
-    status = fatx_utime(pd->fs, path, fat_time);
+    now = time(NULL);
+    replace[0] = true;
+    replace[1] = true;
+
+    if (ts[0].tv_nsec == UTIME_NOW)
+    {
+        fatx_time_t_to_fatx_ts(now, &(fat_time[0]));
+    }
+    else if (ts[0].tv_nsec == UTIME_OMIT)
+    {
+        replace[0] = false;
+    }
+    else
+    {
+        fatx_time_t_to_fatx_ts(ts[0].tv_sec, &(fat_time[0]));
+    }
+
+    if (ts[1].tv_nsec == UTIME_NOW)
+    {
+        fatx_time_t_to_fatx_ts(now, &(fat_time[1]));
+    }
+    else if (ts[1].tv_nsec == UTIME_OMIT)
+    {
+        replace[1] = false;
+    }
+    else
+    {
+        fatx_time_t_to_fatx_ts(ts[1].tv_sec, &(fat_time[1]));
+    }
+
+    status = fatx_utime(pd->fs, path, fat_time, replace);
     return (status == FATX_STATUS_SUCCESS ? 0 : -1);
 }
 

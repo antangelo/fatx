@@ -174,7 +174,7 @@ void fatx_time_t_to_fatx_ts(const time_t in, struct fatx_ts *out)
 {
     struct tm *t;
 
-    t = localtime(&in);
+    t = gmtime(&in);
 
     out->second = t->tm_sec;
     out->minute = t->tm_min;

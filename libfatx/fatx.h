@@ -150,7 +150,7 @@ int fatx_close_dir(struct fatx_fs *fs, struct fatx_dir *dir);
 int fatx_get_attr(struct fatx_fs *fs, char const *path, struct fatx_attr *attr);
 int fatx_set_attr(struct fatx_fs *fs, char const *path, struct fatx_attr *attr);
 int fatx_attr_atomic_swap(struct fatx_fs *fs, char const *dir1, char const *base1, char const *dir2, char const *base2);
-int fatx_utime(struct fatx_fs *fs, char const *path, struct fatx_ts ts[2]);
+int fatx_utime(struct fatx_fs *fs, char const *path, struct fatx_ts ts[2], bool replace[2]);
 int fatx_read(struct fatx_fs *fs, char const *path, off_t offset, size_t size, void *buf);
 int fatx_write(struct fatx_fs *fs, char const *path, off_t offset, size_t size, const void *buf);
 int fatx_create_dirent(struct fatx_fs *fs, char const *path, struct fatx_dir *dir, uint8_t attributes);

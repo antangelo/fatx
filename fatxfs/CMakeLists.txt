@@ -15,7 +15,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-pkg_search_module(FUSE fuse)
+pkg_search_module(FUSE fuse3)
 if(FUSE_MODULE_NAME)
 
 set(FATXFS_SOURCES ${FATXFS_SOURCES}

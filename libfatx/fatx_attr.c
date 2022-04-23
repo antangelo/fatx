@@ -213,7 +213,7 @@ done:
     return status;
 }
 
-int fatx_utime(struct fatx_fs *fs, char const *path, struct fatx_ts ts[2])
+int fatx_utime(struct fatx_fs *fs, char const *path, struct fatx_ts ts[2], bool replace[2])
 {
     int status;
     struct fatx_attr attr;
@@ -223,8 +223,8 @@ int fatx_utime(struct fatx_fs *fs, char const *path, struct fatx_ts ts[2])
     status = fatx_get_attr(fs, path, &attr);
     if (status) return status;
 
-    attr.accessed = ts[0];
-    attr.modified = ts[1];
+    if (replace[0]) attr.accessed = ts[0];
+    if (replace[1]) attr.modified = ts[1];
 
     status = fatx_set_attr(fs, path, &attr);
     return status;
