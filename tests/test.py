@@ -2,9 +2,12 @@
 import unittest
 import hashlib
 import random
+import sys
 
 from pyfatx import Fatx
 
+
+XBOX_HDD = 'xbox_hdd.qcow2'
 
 class BasicTest(unittest.TestCase):
 	"""
@@ -12,7 +15,7 @@ class BasicTest(unittest.TestCase):
 	"""
 
 	def test_xboxdash_read(self):
-		fs = Fatx('xbox_hdd.img')
+		fs = Fatx(XBOX_HDD)
 		d = fs.read('/xboxdash.xbe')
 		m = hashlib.sha256()
 		m.update(d)
@@ -20,7 +23,7 @@ class BasicTest(unittest.TestCase):
 
 	def test_create_file(self):
 		test_file_path = '/test_file.txt'
-		fs = Fatx('xbox_hdd.img')
+		fs = Fatx(XBOX_HDD)
 		content = b'12345'
 		fs.write(test_file_path, content)
 
@@ -38,7 +41,7 @@ class BasicTest(unittest.TestCase):
 
 	def test_truncate_file(self):
 		test_file_path = '/test_file.txt'
-		fs = Fatx('xbox_hdd.img')
+		fs = Fatx(XBOX_HDD)
 		content = b'12345'
 		fs.write(test_file_path, content)
 
@@ -51,7 +54,7 @@ class BasicTest(unittest.TestCase):
 
 	def test_rename_file(self):
 		test_file_path = '/test_file.txt'
-		fs = Fatx('xbox_hdd.img')
+		fs = Fatx(XBOX_HDD)
 		content = b'12345'
 		fs.write(test_file_path, content)
 
@@ -70,7 +73,7 @@ class BasicTest(unittest.TestCase):
 
 	def test_write_large_file(self):
 		test_file_path = '/largefile'
-		fs = Fatx('xbox_hdd.img')
+		fs = Fatx(XBOX_HDD)
 
 		rng = random.Random()
 		rng.seed(12345)
@@ -86,7 +89,7 @@ class BasicTest(unittest.TestCase):
 	
 	def test_write_offset(self):
 		test_file_path = '/offsetfile'
-		fs = Fatx('xbox_hdd.img')
+		fs = Fatx(XBOX_HDD)
 
 		rng = random.Random()
 		rng.seed(12345)
@@ -114,7 +117,7 @@ class BasicTest(unittest.TestCase):
 	def test_rename_overwrite(self):
 		test_file1 = '/test_overwrite1'
 		test_file2 = '/test_overwrite2'
-		fs = Fatx('xbox_hdd.img')
+		fs = Fatx(XBOX_HDD)
 
 		rng = random.Random()
 		rng.seed(12345)
@@ -146,7 +149,7 @@ class BasicTest(unittest.TestCase):
 	def test_rename_exchange(self):
 		test_file1 = '/test_xchg1'
 		test_file2 = '/test_xchg2'
-		fs = Fatx('xbox_hdd.img')
+		fs = Fatx(XBOX_HDD)
 
 		rng = random.Random()
 		rng.seed(12345)
@@ -173,7 +176,7 @@ class BasicTest(unittest.TestCase):
 		test_file1 = '/test_xchg1'
 		file2_dir = '/testdir'
 		test_file2 = '{}/test_xchg2'.format(file2_dir)
-		fs = Fatx('xbox_hdd.img')
+		fs = Fatx(XBOX_HDD)
 
 		fs.mkdir(file2_dir)
 
@@ -204,7 +207,7 @@ class BasicTest(unittest.TestCase):
 		test_file1 = '/test_xchg1'
 		file2_dir = '/testdir'
 		test_file2 = '{}/test_xchg2'.format(file2_dir)
-		fs = Fatx('xbox_hdd.img')
+		fs = Fatx(XBOX_HDD)
 
 		fs.mkdir(file2_dir)
 
@@ -239,7 +242,7 @@ class BasicTest(unittest.TestCase):
 		test_file1 = '/test_xchg1'
 		file2_dir = '/testdir'
 		test_file2 = '{}/test_xchg2'.format(file2_dir)
-		fs = Fatx('xbox_hdd.img')
+		fs = Fatx(XBOX_HDD)
 
 		fs.mkdir(file2_dir)
 
@@ -271,7 +274,7 @@ class BasicTest(unittest.TestCase):
 		test_file1 = '/test_xchg1'
 		file2_dir = '/testdir'
 		test_file2 = '{}/test_xchg2'.format(file2_dir)
-		fs = Fatx('xbox_hdd.img')
+		fs = Fatx(XBOX_HDD)
 
 		fs.mkdir(file2_dir)
 
@@ -303,7 +306,7 @@ class BasicTest(unittest.TestCase):
 		test_file1 = '/test_xchg1'
 		file2_dir = '/testdir'
 		test_file2 = '{}/test_xchg2'.format(file2_dir)
-		fs = Fatx('xbox_hdd.img')
+		fs = Fatx(XBOX_HDD)
 
 		fs.mkdir(file2_dir)
 
@@ -334,7 +337,7 @@ class BasicTest(unittest.TestCase):
 	def test_rename_exchange_nonexistent_file_fails(self):
 		test_file1 = '/test_xchg1'
 		test_file2 = '/test_xchg2'
-		fs = Fatx('xbox_hdd.img')
+		fs = Fatx(XBOX_HDD)
 
 		rng = random.Random()
 		rng.seed(12345)
@@ -360,7 +363,7 @@ class BasicTest(unittest.TestCase):
 	def test_rename_no_replace_does_not_replace_file(self):
 		test_file1 = '/test_xchg1'
 		test_file2 = '/test_xchg2'
-		fs = Fatx('xbox_hdd.img')
+		fs = Fatx(XBOX_HDD)
 
 		rng = random.Random()
 		rng.seed(12345)
@@ -387,7 +390,7 @@ class BasicTest(unittest.TestCase):
 	def test_rename_no_replace_with_nonexistent_destination_works(self):
 		test_file1 = '/test_xchg1'
 		test_file2 = '/test_xchg2'
-		fs = Fatx('xbox_hdd.img')
+		fs = Fatx(XBOX_HDD)
 
 		rng = random.Random()
 		rng.seed(12345)
@@ -413,4 +416,8 @@ class BasicTest(unittest.TestCase):
 
 
 if __name__ == '__main__':
+	if len(sys.argv) > 1:
+		unittest.XBOX_HDD = sys.argv.pop()
+		print(unittest.XBOX_HDD)
+
 	unittest.main()

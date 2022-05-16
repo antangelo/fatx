@@ -834,19 +834,28 @@ int main(int argc, char *argv[])
         fatx_log_init(pd.fs, pd.log_handle, pd.log_level);
     }
 
-    /* Open the device */
     fatx_dev_init();
-    pd.dev = fatx_dev_open(pd.device_path, pd.mount_partition_offset);
-    if (!pd.dev)
-    {
-        fprintf(stderr, "failed to open device\n");
-    }
 
     /* Reformat the drive (if desired) */
     if (pd.format)
     {
         if (pd.format_confirm)
         {
+        #ifdef QEMU
+            /*
+             * QEMU should be able to differentiate between raw/qcow2,
+             * but we can't do so (because we can't use the FATX fs to tell).
+             */
+            pd.dev = fatx_open_qemu_device(pd.device_path);
+        #else
+            pd.dev = fatx_open_raw_device(pd.device_path);
+        #endif
+
+            if (!pd.dev)
+            {
+                fprintf(stderr, "failed to open device\n");
+            }
+
             return fatx_disk_format(pd.fs, pd.dev, pd.device_path, pd.device_sector_size, pd.format, pd.device_sectors_per_cluster);
         }
         else
@@ -859,6 +868,13 @@ int main(int argc, char *argv[])
     {
         fprintf(stderr, "--destroy-all-existing-data can only be used with --format\n");
         goto error_fs;
+    }
+
+    /* Open the device */
+    pd.dev = fatx_dev_open(pd.device_path, pd.mount_partition_offset);
+    if (!pd.dev)
+    {
+        fprintf(stderr, "failed to open device\n");
     }
 
     status = fatx_open_filesystem(pd.fs,

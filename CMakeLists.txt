@@ -33,7 +33,7 @@ target_compile_options(fatx PUBLIC -O2)
 target_link_options(fatx PUBLIC -O2)
 
 if (QEMU)
-    set(QEMU_DIR ${CMAKE_SOURCE_DIR}/../xemu)
+    set(QEMU_DIR ${CMAKE_SOURCE_DIR}/xemu)
     set(QEMU_BUILD_DIR ${QEMU_DIR}/build)
     pkg_search_module(GLIB glib-2.0)
     find_package(ZLIB REQUIRED)

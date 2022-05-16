@@ -1,0 +1,3 @@
+[submodule "xemu"]
+	path = xemu
+	url = https://github.com/mborgerson/xemu.git

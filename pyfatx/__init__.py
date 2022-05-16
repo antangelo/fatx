@@ -11,6 +11,7 @@ from .libfatx.lib import *
 
 log = logging.getLogger(__name__)
 
+assert(fatx_dev_init())
 
 class FatxAttr:
 	"""
@@ -71,7 +72,7 @@ class Fatx:
 			offset, size = partitions[drive]
 		if isinstance(path, str):
 			path = path.encode('utf-8')
-		self.dev = fatx_open_device(path, offset)
+		self.dev = fatx_dev_open(path, offset)
 		s = fatx_open_filesystem(self.fs, self.dev, path, offset, size, sector_size, 0)
 		if s != 0:
 			self.fs = None
@@ -80,7 +81,7 @@ class Fatx:
 	def __del__(self):
 		if self.fs is not None:
 			fatx_close_filesystem(self.fs)
-			fatx_close_device(self.dev)
+			fatx_dev_close(self.dev)
 			# FIXME: Leaks fs
 
 	def _sanitize_path(self, path):

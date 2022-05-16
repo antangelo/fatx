@@ -39,6 +39,10 @@ fatx_dev_init_fn *fatx_dev_init_functions[] = {
 
 bool fatx_dev_init()
 {
+    static bool init_complete = false;
+
+    if (init_complete) return true;
+
     bool init_success = true;
     assert(ARRAY_SIZE(fatx_dev_open_functions) == ARRAY_SIZE(fatx_dev_init_functions));
 
@@ -47,6 +51,7 @@ bool fatx_dev_init()
         init_success &= fatx_dev_init_functions[i]();
     }
 
+    init_complete = init_success;
     return init_success;
 }
 
@@ -55,6 +60,10 @@ struct fatx_dev *fatx_dev_open(const char *path, off_t sample_partition_offset)
     struct fatx_dev *dev;
     uint32_t signature;
 
+    /* 
+     * Use the partition offset to detect raw or qcow2
+     * No need for block driver complexity if we have a raw image
+     */
     for (size_t i = 0; i < ARRAY_SIZE(fatx_dev_open_functions); ++i)
     {
         dev = fatx_dev_open_functions[i](path);

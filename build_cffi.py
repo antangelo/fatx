@@ -9,7 +9,7 @@ from distutils.command.build_ext import build_ext
 ROOT_DIR = os.path.abspath(os.path.dirname(__file__))
 LIBFATX_DIR = os.path.join(ROOT_DIR, 'libfatx')
 BUILD_DIR = os.path.join(ROOT_DIR, 'build')
-QEMU_DIR = os.path.join(ROOT_DIR, '../xemu')
+QEMU_DIR = os.path.join(ROOT_DIR, 'xemu')
 QEMU_INCLUDE_DIR = os.path.join(QEMU_DIR, 'include')
 QEMU_BUILD_DIR = os.path.join(QEMU_DIR, 'build')
 
@@ -56,11 +56,12 @@ def ffibuilder():
         }
 
         """,
-        libraries=['fatx'],
+        libraries=['fatx', 'block', 'authz', 'qom', 'io', 'crypto', 'qemuutil', 'z', 'glib-2.0'],
         include_dirs=[LIBFATX_DIR, QEMU_INCLUDE_DIR, QEMU_BUILD_DIR],
         library_dirs=[LIBRARY_DIR, QEMU_BUILD_DIR])
     ffi.cdef("""
         struct fatxfs;
+        struct fatx_dev;
 
         struct fatx_dir {
             size_t cluster;
@@ -94,7 +95,9 @@ def ffibuilder():
 
         struct fatx_fs *pyfatx_open_helper(void);
 
-        struct fatx_dev *fatx_open_dev(const char *path, uint64_t offset);
+        struct fatx_dev *fatx_dev_open(const char *path, uint64_t offset);
+        void fatx_dev_close(struct fatx_dev *dev);
+        bool fatx_dev_init();
         int fatx_open_filesystem(struct fatx_fs *fs, struct fatx_dev *dev, char const *path, uint64_t offset, uint64_t size, size_t sector_size, size_t sectors_per_cluster);
         int fatx_close_filesystem(struct fatx_fs *fs);
         int fatx_open_dir(struct fatx_fs *fs, char const *path, struct fatx_dir *dir);
